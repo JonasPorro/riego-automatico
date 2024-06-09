@@ -7,7 +7,7 @@
 #include <DNSServer.h>
 #include <WiFiManager.h>          // by  https://github.com/kentaylor/WiFiManager
 #include <DHT11.h>
-#include <MQTT.h>
+#include <PubSubClient.h>
 
 // Constants
 
@@ -18,93 +18,85 @@
 // Variables
 
 // Indicates whether ESP has WiFi credentials saved from previous session
+const char* mqtt_server = "192.168.10.111";
 bool initialConfig = false;
-float humidity;
+int humidity;
 DHT11 dht11(2);
-MQTTClient client;
-WiFiClient net;
+WiFiClient espClient;
+PubSubClient client(espClient);
+char cstr[16];
+WiFiManager wifiManager; 
+int contador = 0;
 
 /////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////
 
 void connect_mqtt() {
   Serial.print("\nconnecting...");
-  while (!client.connect("ESP8266", true)) {
-    Serial.print(".");
-    delay(1000);
+  client.connect("ESP8266");
+  delay(1000);
+  Serial.print(client.state());
+  if (client.connected()) {
+    Serial.println("\nconnected!");
+    client.subscribe("lecturas");
+  } else {
+    Serial.println(WiFi.localIP());
   }
+}
 
-  Serial.println("\nconnected!");
+void config_panel() {
+  digitalWrite(Led_No_Config_Network, HIGH); // Turn LED off as we are not in configuration mode.        
+  Serial.println("Configuration portal requested");    
+  
+  wifiManager.setConfigPortalTimeout(180);  // reset esp8266 180 seg
 
-  client.subscribe("/lecturas");
+  WiFiManagerParameter custom_text("<p>Configuración EcoRiego</p>");
+  wifiManager.addParameter(&custom_text);
+  wifiManager.startConfigPortal("EcoRiego Station");
+  
+  delay(2500);
+  digitalWrite(Led_No_Config_Network, LOW);
+  initialConfig = false;
+}
+
+void ICACHE_RAM_ATTR isr() {
+  initialConfig = true;
 }
 
 // Setup function
 void setup() {
-  // Put your setup code here, to run once
   Serial.begin(115200);
   Serial.println("\n Starting");
 
 
   pinMode(Config_Network, INPUT_PULLUP); 
+  attachInterrupt(Config_Network, isr, FALLING);
+
   pinMode(Led_No_Config_Network, OUTPUT);
-  
-  client.begin(IPAddress(192,168,10,111), net);
+  client.setServer(mqtt_server, 1883);
 
-  if (WiFi.SSID() == "") {
-    Serial.println("We haven't got any access point credentials, so get them now");
+  if (wifiManager.getWiFiIsSaved()){
+    if(!wifiManager.autoConnect("EcoRiego Station")){
+      digitalWrite(Led_No_Config_Network, HIGH);
+    }
+  } else {
     initialConfig = true;
-    digitalWrite(Led_No_Config_Network, HIGH);
- 
-  } else {
-    WiFi.mode(WIFI_STA); 
-    unsigned long startedAt = millis();
-    Serial.print("After waiting ");
-    int connRes = WiFi.waitForConnectResult();
-    float waited = (millis()- startedAt);
-    Serial.print(waited/1000);
-    Serial.print(" secs in setup() connection result is ");
-    Serial.println(connRes);
-    connect_mqtt();
-  }
-
-    if (WiFi.status()!=WL_CONNECTED){
-    Serial.println("Failed to connect, finishing setup anyway");
-  } else {
-    Serial.print("Local ip: ");
-    Serial.println(WiFi.localIP());
   }
 }
 
 // Loop function
-
 void loop() {
   // is configuration portal requested? /// button 
-  if ( (digitalRead(Config_Network) == HIGH) || (initialConfig)) {  
-    
-    digitalWrite(Led_No_Config_Network, HIGH); // Turn LED off as we are not in configuration mode.        
-    Serial.println("Configuration portal requested");    
-
-    WiFiManager wifiManager;           
-    wifiManager.setConfigPortalTimeout(180);  ///// reset esp8266 180 seg
-
-    WiFiManagerParameter custom_text("<p>Configuración EcoRiego</p>");
-    wifiManager.addParameter(&custom_text);
-    wifiManager.startConfigPortal("EcoRiego Station", "ecoriego");
-
-    ESP.reset(); // This is a bit crude. For some unknown reason webserver can only be started once per boot up 
-    // so resetting the device allows to go back into config mode again when it reboots.
-    delay(2500);
-    connect_mqtt();
+  if (initialConfig) {  
+    config_panel();
   }
-
-  digitalWrite(Led_No_Config_Network, LOW);
 
   // Configuration portal not requested, so run normal loop
   
   /////////////////////////////////BEGIN  loop  -  INICIA  loop ////////////////////////////////////////////////////////////////////////////
   //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-  if (WiFi.SSID() != ""){
+
+  if (WiFi.status() == WL_CONNECTED){
     if (!client.connected()) {
       connect_mqtt();
     }
@@ -113,13 +105,17 @@ void loop() {
     if (humidity != DHT11::ERROR_CHECKSUM && humidity != DHT11::ERROR_TIMEOUT) {
       Serial.print("Humidity: ");
       Serial.print(humidity);
-      client.publish("/lecturas", String(humidity));
+      client.publish("lecturas", itoa(humidity, cstr, 10));
     } else {
       // Print error message based on the error code.
       Serial.println(DHT11::getErrorString(humidity));
     }
 
-    delay(5000);
+    while (!initialConfig && (contador < 300000)){
+      delay(1);
+      contador = contador + 1;
+    }
+    contador = 0;
   }
   ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
   ///////////////////////////// End loop   --       fin de codigo////////////////////////////////////////////////////////////////////////////
