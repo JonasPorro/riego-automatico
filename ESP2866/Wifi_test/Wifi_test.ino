@@ -15,7 +15,6 @@
 #define DHTPIN 2
 
 // Variables varias
-int contador = 0;
 const char* PARAM_FILE = "/param.txt"; // File path in SPIFFS
 
 // Variables mqtt
@@ -46,7 +45,7 @@ void buscarMqttServer(){
   udp.begin(localPort);
   char incomingPacket[255]; // Buffer for incoming packets
   Serial.println("Looking for a mqtt server");
-  while (strlen(mqtt_server) == 0){
+  while (!initialConfig && strlen(mqtt_server) == 0){
     Serial.print(".");
     int packetSize = udp.parsePacket();
     
@@ -60,9 +59,23 @@ void buscarMqttServer(){
       // Check if the packet contains the specific keyword
       if (strstr(incomingPacket, "EcoriegoBase") != NULL) {
         strcpy(mqtt_server, &incomingPacket[13]);
+        digitalWrite(Led_No_Config_Network, LOW); 
+        return;
       }
     }
-    delay(10000);
+
+    int contador = 0;
+
+    while (!initialConfig && (contador < 5000)){
+      delay(1);
+      if (contador == 0 || contador == 2500){
+        digitalWrite(Led_No_Config_Network, HIGH);
+      } else if (contador == 1250 || contador == 3750){
+        digitalWrite(Led_No_Config_Network, LOW); 
+      }
+      contador = contador + 1;
+    }
+    contador = 0;
   }
 }
 
@@ -116,7 +129,7 @@ void connect_mqtt() {
 }
 
 void config_panel() {
-  digitalWrite(Led_No_Config_Network, HIGH); // Turn LED off as we are not in configuration mode.        
+  digitalWrite(Led_No_Config_Network, HIGH); // Turn LED on as we are in configuration mode.        
   Serial.println("Configuration portal requested");    
   
   wifiManager.startConfigPortal("EcoRiego Station");
@@ -125,7 +138,9 @@ void config_panel() {
   
   digitalWrite(Led_No_Config_Network, LOW);
   initialConfig = false;
-  saveParamToSPIFFS(client_id.getValue());
+  if (strlen(client_id.getValue()) != 0){
+    saveParamToSPIFFS(client_id.getValue());
+  }
   loadParamFromSPIFFS();
 }
 
@@ -188,7 +203,7 @@ void loop() {
 
     humidity = dht11.readHumidity();
     if (humidity != DHT11::ERROR_CHECKSUM && humidity != DHT11::ERROR_TIMEOUT && strlen(client_id_mqtt) != 0) {
-      Serial.print("Humidity: ");
+      Serial.println("Humidity: ");
       strcpy(message, client_id_mqtt);
       strcat(message, "|");
       strcat(message, itoa(humidity, cstr, 10));
@@ -197,12 +212,14 @@ void loop() {
       client.publish("lecturas",message);
     } else if (strlen(client_id_mqtt) == 0) {
       Serial.println("No hay client ID configurado.");
+      config_panel();
     } else {
       // Print error message based on the error code.
       Serial.println(DHT11::getErrorString(humidity));
     }
+    int contador = 0;
 
-    while (!initialConfig && (contador < 300000)){
+    while (!initialConfig && (contador < 10000)){
       delay(1);
       contador = contador + 1;
     }

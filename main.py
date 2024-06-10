@@ -1,4 +1,3 @@
-import sqlite3
 import paho.mqtt.client as mqtt
 from datetime import datetime
 import time
@@ -6,9 +5,8 @@ import socket
 import threading
 
 # Coonfiguración inicial
-conn = sqlite3.connect('Riego_automatico.db')
-cursor = conn.cursor()
 nombreConfig = "config.txt"
+nombreMedicion = "mediciones.txt"
 
 def get_local_ip():
     # Function to get the local IP address
@@ -53,15 +51,16 @@ def on_message(client, userdata, msg):
     message = msg.payload.decode("utf-8") # MSJ De ejemplo: MED1|132
     datos = message.split("|")
     archivoConfig = open(nombreConfig, "r")
+    archivoMedicion = open(nombreMedicion, "a")
     umbral = int(archivoConfig.readline())
     tiempoActivo = int(archivoConfig.readline())
     archivoConfig.close()
 
     # Guardar medición en la base de datos
     try:
-        cursor.execute("INSERT INTO MEDICION (FECHA_MEDICION, DISPOSITIVO, VALOR) VALUES (?, ?, ?)", (datetime.now(), datos[0], datos[1]))
-        conn.commit()
+        archivoMedicion.write(datetime.now().strftime("%m/%d/%Y, %H:%M:%S") + "|" + message + '\n')
         print("\nSe insertó " + message)
+        archivoMedicion.close()
     except:
         print("\nNo se pudo insertar " + message)
     
