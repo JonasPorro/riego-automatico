@@ -11,7 +11,8 @@
 // Constants
 
 #define Config_Network 5 //     /// BUTTON Config Wifi
-#define Led_No_Config_Network 14 // GPIO D5   /// LED No Config Wifi  ///  RED Rojo
+#define Led_No_Config_Network 14 // GPIO D5   /// LED No Config Wifi  ///  Rojo
+#define Led_Connected_Network 12 // GPIO D6   /// LED conectado Wifi  ///  Amarillo
 #define DHTPIN 2
 
 // Variables varias
@@ -157,6 +158,7 @@ void setup() {
   attachInterrupt(Config_Network, isr, FALLING);
 
   pinMode(Led_No_Config_Network, OUTPUT);
+  pinMode(Led_Connected_Network, OUTPUT);
   
   // Initialize SPIFFS
   if (!SPIFFS.begin()) {
@@ -189,6 +191,8 @@ void loop() {
   //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   if (WiFi.status() == WL_CONNECTED){
+    
+    digitalWrite(Led_Connected_Network, HIGH);
 
     // Print the custom parameter to the Serial
     if (strlen(client_id_mqtt) == 0){
