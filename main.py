@@ -64,7 +64,7 @@ def on_message(client, userdata, msg):
     except:
         print("\nNo se pudo insertar " + message)
     
-    if int(datos[1]) > umbral:
+    if int(datos[1]) < umbral:
         print("Se prendió la bomba")
         time.sleep(tiempoActivo)
         print("Se apagó la bomba")

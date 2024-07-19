@@ -13,7 +13,7 @@
 #define Config_Network 5 //     /// BUTTON Config Wifi
 #define Led_No_Config_Network 14 // GPIO D5   /// LED No Config Wifi  ///  Rojo
 #define Led_Connected_Network 12 // GPIO D6   /// LED conectado Wifi  ///  Amarillo
-#define DHTPIN 2
+#define sensor_pin A0
 
 // Variables varias
 const char* PARAM_FILE = "/param.txt"; // File path in SPIFFS
@@ -27,7 +27,6 @@ char message[40];
 
 // Variables sensor
 int humidity;
-DHT11 dht11(2);
 char cstr[16];
 
 // Variables wifimanager
@@ -67,11 +66,11 @@ void buscarMqttServer(){
 
     int contador = 0;
 
-    while (!initialConfig && (contador < 5000)){
+    while (!initialConfig && (contador < 2500)){
       delay(1);
-      if (contador == 0 || contador == 2500){
+      if (contador == 0 || contador == 1250){
         digitalWrite(Led_No_Config_Network, HIGH);
-      } else if (contador == 1250 || contador == 3750){
+      } else if (contador == 625 || contador == 1875){
         digitalWrite(Led_No_Config_Network, LOW); 
       }
       contador = contador + 1;
@@ -154,7 +153,7 @@ void setup() {
   Serial.begin(115200);
   Serial.println("\n Starting");
 
-  pinMode(Config_Network, INPUT_PULLUP); 
+  pinMode(Config_Network, INPUT); 
   attachInterrupt(Config_Network, isr, FALLING);
 
   pinMode(Led_No_Config_Network, OUTPUT);
@@ -205,7 +204,8 @@ void loop() {
       connect_mqtt();
     }
 
-    humidity = dht11.readHumidity();
+    humidity = analogRead(sensor_pin);
+    humidity = map(humidity,736,490,0,100); 
     if (humidity != DHT11::ERROR_CHECKSUM && humidity != DHT11::ERROR_TIMEOUT && strlen(client_id_mqtt) != 0) {
       Serial.println("Humidity: ");
       strcpy(message, client_id_mqtt);
