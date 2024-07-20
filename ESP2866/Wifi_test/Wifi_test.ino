@@ -153,8 +153,8 @@ void setup() {
   Serial.begin(115200);
   Serial.println("\n Starting");
 
-  pinMode(Config_Network, INPUT); 
-  attachInterrupt(Config_Network, isr, FALLING);
+  pinMode(Config_Network, INPUT_PULLDOWN_16); 
+  attachInterrupt(Config_Network, isr, RISING);
 
   pinMode(Led_No_Config_Network, OUTPUT);
   pinMode(Led_Connected_Network, OUTPUT);
