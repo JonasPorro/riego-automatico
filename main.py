@@ -1,3 +1,4 @@
+from gpiozero import LED, OutputDevice
 import paho.mqtt.client as mqtt
 from datetime import datetime
 import time
@@ -5,8 +6,12 @@ import socket
 import threading
 
 # Coonfiguración inicial
-nombreConfig = "config.txt"
-nombreMedicion = "mediciones.txt"
+nombreConfig = "/var/www/html/web/config.txt"
+nombreMedicion = "/var/www/html/web/mediciones.txt"
+ledmsg = LED(18)
+ledconn = LED(17)
+relay_pin = 4
+relay = OutputDevice(relay_pin, active_high=True, initial_value=False)
 
 def get_local_ip():
     # Function to get the local IP address
@@ -17,6 +22,8 @@ def get_local_ip():
         ip = s.getsockname()[0]
     except Exception:
         ip = '127.0.0.1'
+    else:
+        ledconn.on()
     finally:
         s.close()
     return ip
@@ -63,11 +70,17 @@ def on_message(client, userdata, msg):
         archivoMedicion.close()
     except:
         print("\nNo se pudo insertar " + message)
+    else:
+        ledmsg.on()
+        time.sleep(1)
+        ledmsg.off()
     
     if int(datos[1]) < umbral:
         print("Se prendió la bomba")
+        relay.on()
         time.sleep(tiempoActivo)
         print("Se apagó la bomba")
+        relay.off()
         
 
 # Configuración del cliente MQTT
