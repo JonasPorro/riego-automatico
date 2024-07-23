@@ -21,13 +21,19 @@ def get_local_ip():
         s.connect(('10.254.254.254', 1))
         ip = s.getsockname()[0]
     except Exception:
-        ledconn.off()
         ip = '127.0.0.1'
-    else:
-        ledconn.on()
     finally:
         s.close()
     return ip
+
+def check_connection():
+    while True:
+        ip = get_local_ip()
+        if ip != '127.0.0.1':
+            ledconn.on()
+        else:
+            ledconn.off()
+        time.sleep(10)  # Verificar cada 10 segundos
 
 def broadcast_ip(ip, port=5005):
     broadcast_address = '<broadcast>'  # Broadcast to all addresses in the local network
@@ -55,7 +61,7 @@ def start_broadcast_thread():
     broadcast_thread.start()
 
 def start_ledconn_thread():
-    ledconn_thread = threading.Thread(target=get_local_ip)
+    ledconn_thread = threading.Thread(target=check_connection)
     ledconn_thread.daemon = True  # This makes sure the thread will close when the main program exits
     ledconn_thread.start()
 
