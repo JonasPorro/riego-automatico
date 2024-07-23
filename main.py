@@ -21,6 +21,7 @@ def get_local_ip():
         s.connect(('10.254.254.254', 1))
         ip = s.getsockname()[0]
     except Exception:
+        ledconn.off()
         ip = '127.0.0.1'
     else:
         ledconn.on()
@@ -52,6 +53,11 @@ def start_broadcast_thread():
     broadcast_thread = threading.Thread(target=broadcast_ip, args=(local_ip,))
     broadcast_thread.daemon = True  # This makes sure the thread will close when the main program exits
     broadcast_thread.start()
+
+def start_ledconn_thread():
+    ledconn_thread = threading.Thread(target=get_local_ip)
+    ledconn_thread.daemon = True  # This makes sure the thread will close when the main program exits
+    ledconn_thread.start()
 
 # Función para manejar los mensajes MQTT recibidos
 def on_message(client, userdata, msg):
@@ -95,6 +101,7 @@ client.subscribe(mqtt_topic)
 
 # Empezar a hacer broadcast de la ip
 start_broadcast_thread()
+start_ledconn_thread()
 
 # Bucle de espera para recibir mensajes MQTT
 client.loop_forever()

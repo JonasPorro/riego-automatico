@@ -148,6 +148,10 @@ void ICACHE_RAM_ATTR isr() {
   initialConfig = true;
 }
 
+void configModeCallback (WiFiManager *myWiFiManager) {
+  digitalWrite(Led_No_Config_Network, HIGH);
+}
+
 // Setup function
 void setup() {
   Serial.begin(115200);
@@ -165,13 +169,12 @@ void setup() {
     return;
   }
 
+  wifiManager.setAPCallback(configModeCallback);
   wifiManager.setConfigPortalTimeout(180);  // reset esp8266 180 seg
   wifiManager.addParameter(&client_id);
 
   if (wifiManager.getWiFiIsSaved()){
-    if(!wifiManager.autoConnect("EcoRiego Station")){
-      digitalWrite(Led_No_Config_Network, HIGH);
-    }
+    wifiManager.autoConnect("EcoRiego Station");
   } else {
     initialConfig = true;
   }
