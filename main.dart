@@ -1,387 +1,522 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
+import 'package:fl_chart/fl_chart.dart';
+import 'package:universal_html/html.dart' as html;
+import 'package:dio/dio.dart';
 
 void main() {
-  runApp(const MyApp());
+    runApp(const MyApp());
 }
 
 const Color marfil = Color.fromRGBO(255, 255, 240, 1.0);
 
 class MyApp extends StatelessWidget {
-  const MyApp({Key? key}) : super(key: key);
+    const MyApp({Key? key}) : super(key: key);
 
-  @override
+    @override
     Widget build(BuildContext context) {
-      return MaterialApp(
-        title: 'SISTEMA DE RIEGO AUTOMATIZADO',
-        home: Scaffold(
-          appBar: AppBar(
-            title: const Text(
-              'SISTEMA DE RIEGO AUTOMATIZADO',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-            ),
-              backgroundColor: Colors.green,
-            bottom: PreferredSize(
-              preferredSize: const Size.fromHeight(140), // Ajusta según sea necesario
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: Image.asset(
-                  'assets/logo.jpg',
-                  width: 100, // Ajusta el tamaño del logo según necesites
-                  height: 100,
-                  fit: BoxFit.contain, // Ajustar la imagen dentro del contenedor
+        return MaterialApp(
+            title: 'SISTEMA DE RIEGO AUTOMATIZADO',
+            home: Scaffold(
+                appBar: AppBar(
+                    title: const Text(
+                        'SISTEMA DE RIEGO AUTOMATIZADO',
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                        textAlign: TextAlign.center,
+                    ),
+                    backgroundColor: Colors.green,
+                    bottom: PreferredSize(
+                        preferredSize: const Size.fromHeight(140),
+                        child: Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: Image.asset(
+                                'assets/logo.jpg',
+                                width: 100,
+                                height: 100,
+                                fit: BoxFit.contain,
+                            ),
+                        ),
+                    ),
                 ),
-              ),
+                body: const CustomBody(),
             ),
-          ),
-          body: const CustomBody(),
-        ),
-      );
+        );
     }
-  }
-
-class CustomBody extends StatefulWidget {
-  const CustomBody({Key? key}) : super(key: key);
-
-  @override
-  _CustomBodyState createState() => _CustomBodyState();
 }
 
+class CustomBody extends StatefulWidget {
+    const CustomBody({Key? key}) : super(key: key);
+
+    @override
+    _CustomBodyState createState() => _CustomBodyState();
+}
+
+
 class _CustomBodyState extends State<CustomBody> {
-  String? selectedSection;
-  late List<String> lines;
+    String? selectedSection;
+    late List<String> lines;
+    Timer? _timer;
 
-  @override
-  void initState() {
-    super.initState();
-    lines = []; // Inicializar la lista vacía al inicio
-    _readFile();
-  }
+    @override
+    void initState() {
+        super.initState();
+        lines = []; // Inicializo la lista vacía al inicio
+        _readFile();
 
-  Future<void> _readFile() async {
-    try {
-      final File file = File('mediciones.txt');
-      if (await file.exists()) {
-        lines = await file.readAsLines();
-        setState(() {}); // Actualizar UI después de leer el archivo
-      } else {
-        print('El archivo no existe.');
-      }
-    } catch (e) {
-      print('Error al leer el archivo: $e');
+        // Configuro el temporizador para refrescar cada 5 segundos
+        _timer = Timer.periodic(Duration(seconds: 5), (timer) {
+            _readFile();
+        });
     }
-  }
 
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        Container(
-          color: marfil,
-          width: double.infinity,
-          height: double.infinity,
-        ),
-        Positioned(
-          top: 120,
-          left: 20,
-          child: CustomPopupMenu(
-            onItemSelected: (section) {
-              setState(() {
-                selectedSection = section;
-              });
-            },
-          ),
-        ),
-        if (selectedSection != null)
-          Positioned(
-            top: 300,
-            left: 0,
-            right: 0,
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  const SizedBox(height: 20),
-                  if (selectedSection == 'Información en tiempo real')
-                    FutureBuilder(
-                      future: leerArchivoRtdo(),
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.waiting) {
-                          return CircularProgressIndicator();
-                        } else if (snapshot.hasError) {
-                          return Text('Error: ${snapshot.error}');
-                        } else {
-                          return CustomSection(
-                            title: 'Sección 1 - Mediciones',
-                            content: Text(snapshot.data ?? 'No se encontraron mediciones para hoy.'),
-                          );
-                        }
-                      },
+    @override
+    void dispose() {
+        _timer?.cancel(); // Cancelar el temporizador cuando se destruya el widget
+        super.dispose();
+    }
+
+
+    Future<void> _readFile() async {
+        try {
+            final dio = Dio();
+
+            //final response = await http.get(Uri.parse('http://localhost/web/mediciones.txt'));
+            final response = await dio.get('http://ecoriegobase.local/web/mediciones.txt');
+            if (response.statusCode == 200) {
+                setState(() {
+                    lines = response.data.split('\n');
+                });
+            } else {
+                throw Exception('Error al obtener el archivo: ${response.statusCode}');
+            }
+        } catch (e) {
+            throw Exception('Error al leer el archivo: $e');
+        }
+    }
+
+    @override
+    Widget build(BuildContext context) {
+        return Stack(
+            children: [
+                Container(
+                    color: marfil,
+                    width: double.infinity,
+                    height: double.infinity,
+                ),
+                Positioned(
+                    top: 120,
+                    left: 20,
+                    child: CustomPopupMenu(
+                        onItemSelected: (section) {
+                            setState(() {
+                                selectedSection = section;
+                            });
+                        },
                     ),
-                  if (selectedSection == 'Historial de mediciones')
-                    Container(
-                      padding: EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          Text('Sección 2 - Historial de mediciones'),
-                          const SizedBox(height: 20),
-                          Text('Aquí va el contenido del historial de mediciones...'),
-                        ],
-                      ),
+                ),
+                if (selectedSection != null)
+                    Positioned(
+                        top: 250,
+                        left: 0,
+                        right: 0,
+                        child: SingleChildScrollView(
+                            child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                    const SizedBox(height: 20),
+                                    if (selectedSection == 'Información en tiempo real')
+                                        FutureBuilder(
+                                            future: leerArchivoRtdo(),
+                                            builder: (context, snapshot) {
+                                                if (snapshot.connectionState == ConnectionState.waiting) {
+                                                    return CircularProgressIndicator();
+                                                } else if (snapshot.hasError) {
+                                                    return Text('Error: ${snapshot.error}');
+                                                } else {
+                                                    return CustomSection(
+                                                        title: 'Sección 1 - Mediciones',
+                                                        content: Text(snapshot.data ?? 'No se encontraron mediciones para hoy.'),
+                                                    );
+                                                }
+                                            },
+                                        ),
+                                    if (selectedSection == 'Historial de mediciones')
+                                        const HistorialDeMediciones(),
+                                    if (selectedSection == 'Configuración de parámetros')
+                                        const ConfiguracionParametros(),
+                                ],
+                            ),
+                        ),
                     ),
-                  if (selectedSection == 'Configuración de parámetros')
-                    const ConfiguracionParametros(),
-                ],
-              ),
-            ),
-          ),
-      ],
-    );
-  }
+            ],
+        );
+    }
 }
 
 class CustomPopupMenu extends StatelessWidget {
-  final Function(String) onItemSelected;
+    final Function(String) onItemSelected;
 
-  const CustomPopupMenu({Key? key, required this.onItemSelected}) : super(key: key);
+    const CustomPopupMenu({Key? key, required this.onItemSelected}) : super(key: key);
 
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.fromLTRB(16, 16, 0, 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          CustomMenuItem(
-            icon: Icons.info,
-            title: 'Información en tiempo real',
-            onPressed: () {
-              onItemSelected('Información en tiempo real');
-            },
-          ),
-          SizedBox(
-            height: 20,
-            child: Container(color: marfil),
-          ),
-          CustomMenuItem(
-            icon: Icons.bar_chart,
-            title: 'Historial de mediciones',
-            onPressed: () {
-              onItemSelected('Historial de mediciones');
-            },
-          ),
-          SizedBox(
-            height: 20,
-            child: Container(color: marfil),
-          ),
-          CustomMenuItem(
-            icon: Icons.settings,
-            title: 'Configuración de parámetros',
-            onPressed: () {
-              onItemSelected('Configuración de parámetros');
-            },
-          ),
-        ],
-      ),
-    );
-  }
+    @override
+    Widget build(BuildContext context) {
+        return Container(
+            color: Colors.white,
+            padding: const EdgeInsets.fromLTRB(16, 16, 0, 8),
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                    CustomMenuItem(
+                        icon: Icons.info,
+                        title: 'Información en tiempo real',
+                        onPressed: () {
+                            onItemSelected('Información en tiempo real');
+                        },
+                    ),
+                    SizedBox(
+                        height: 20,
+                        child: Container(color: marfil),
+                    ),
+                    CustomMenuItem(
+                        icon: Icons.bar_chart,
+                        title: 'Historial de mediciones',
+                        onPressed: () {
+                            onItemSelected('Historial de mediciones');
+                        },
+                    ),
+                    SizedBox(
+                        height: 20,
+                        child: Container(color: marfil),
+                    ),
+                    CustomMenuItem(
+                        icon: Icons.settings,
+                        title: 'Configuración de parámetros',
+                        onPressed: () {
+                            onItemSelected('Configuración de parámetros');
+                        },
+                    ),
+                ],
+            ),
+        );
+    }
 }
 
 class CustomMenuItem extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final VoidCallback onPressed;
+    final IconData icon;
+    final String title;
+    final VoidCallback onPressed;
 
-  const CustomMenuItem({
-    required this.icon,
-    required this.title,
-    required this.onPressed,
-  });
+    const CustomMenuItem({
+        required this.icon,
+        required this.title,
+        required this.onPressed,
+    });
 
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onPressed,
-      child: Row(
-        children: [
-          Icon(icon),
-          const SizedBox(width: 8),
-          Text(title),
-        ],
-      ),
-    );
-  }
+    @override
+    Widget build(BuildContext context) {
+        return InkWell(
+            onTap: onPressed,
+            child: Row(
+                children: [
+                    Icon(icon),
+                    const SizedBox(width: 8),
+                    Text(title),
+                ],
+            ),
+        );
+    }
 }
 
 class CustomSection extends StatelessWidget {
-  final String title;
-  final Widget content;
+    final String title;
+    final Widget content;
 
-  const CustomSection({required this.title, required this.content});
+    const CustomSection({required this.title, required this.content});
 
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 10),
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.5),
-            spreadRadius: 1,
-            blurRadius: 3,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 10),
-          content,
-        ],
-      ),
-    );
-  }
+    @override
+    Widget build(BuildContext context) {
+        return Container(
+            margin: const EdgeInsets.symmetric(vertical: 10),
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(10),
+                boxShadow: [
+                    BoxShadow(
+                        color: Colors.grey.withOpacity(0.5),
+                        spreadRadius: 1,
+                        blurRadius: 3,
+                        offset: const Offset(0, 2),
+                    ),
+                ],
+            ),
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                    Text(
+                        title,
+                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 10),
+                    content,
+                ],
+            ),
+        );
+    }
 }
 
 class ConfiguracionParametros extends StatefulWidget {
-  const ConfiguracionParametros({Key? key}) : super(key: key);
+    const ConfiguracionParametros({Key? key}) : super(key: key);
 
-  @override
-  _ConfiguracionParametrosState createState() => _ConfiguracionParametrosState();
+    @override
+    _ConfiguracionParametrosState createState() => _ConfiguracionParametrosState();
 }
 
 class _ConfiguracionParametrosState extends State<ConfiguracionParametros> {
-  late TextEditingController umbralController;
-  late TextEditingController tiempoBombaController;
-  String? errorMessage;
+    late TextEditingController umbralController;
+    late TextEditingController tiempoBombaController;
+    String? errorMessage;
 
-  @override
-  void initState() {
-    super.initState();
-    umbralController = TextEditingController();
-    tiempoBombaController = TextEditingController();
-    cargarConfiguracion();
-  }
-
-  @override
-  void dispose() {
-    umbralController.dispose();
-    tiempoBombaController.dispose();
-    super.dispose();
-  }
-
-  Future<void> cargarConfiguracion() async {
-    try {
-      final File file = File('config.txt');
-      List<String> contents = await file.readAsLines();
-      setState(() {
-        umbralController.text = contents.isNotEmpty ? contents[0] : '';
-        tiempoBombaController.text = contents.length > 1 ? contents[1] : '';
-        errorMessage = null;
-      });
-    } catch (e) {
-      setState(() {
-        errorMessage = 'Error al cargar la configuración: $e';
-      });
+    @override
+    void initState() {
+        super.initState();
+        umbralController = TextEditingController();
+        tiempoBombaController = TextEditingController();
+        cargarConfiguracion();
     }
-  }
 
-  Future<void> guardarConfiguracion() async {
-    try {
-      final File file = File('config.txt');
-      await file.writeAsString('${umbralController.text}\n${tiempoBombaController.text}');
-      setState(() {
-        errorMessage = null;
-      });
-    } catch (e) {
-      setState(() {
-        errorMessage = 'Error al guardar la configuración: $e';
-      });
+    @override
+    void dispose() {
+        umbralController.dispose();
+        tiempoBombaController.dispose();
+        super.dispose();
     }
-  }
 
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (errorMessage != null) Text(errorMessage!, style: TextStyle(color: Colors.red)),
-        Text(
-          'Parámetros Actuales:',
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 10),
-        TextField(
-          controller: umbralController,
-          decoration: InputDecoration(labelText: 'Umbral de Humedad (%)'),
-        ),
-        const SizedBox(height: 10),
-        TextField(
-          controller: tiempoBombaController,
-          decoration: InputDecoration(labelText: 'Tiempo de riego (en minutos)'),
-        ),
-        const SizedBox(height: 20),
-        ElevatedButton(
-          onPressed: guardarConfiguracion,
-          child: const Text('Guardar Cambios'),
-        ),
-      ],
-    );
-  }
+    Future<void> cargarConfiguracion() async {
+        try {
+            final response = await http.get(Uri.parse('http://ecoriegobase.local/web/config.txt'));
+            if (response.statusCode == 200) {
+                List<String> contents = response.body.split('\n');
+                setState(() {
+                    umbralController.text = contents.isNotEmpty ? contents[0] : '';
+                    tiempoBombaController.text = contents.length > 1 ? contents[1] : '';
+                    errorMessage = null;
+                });
+            } else {
+                setState(() {
+                    errorMessage = 'Error al obtener el archivo: ${response.statusCode}';
+                });
+            }
+        } catch (e) {
+            setState(() {
+                errorMessage = 'Error al leer el archivo: $e';
+            });
+        }
+    }
+
+    Future<void> guardarConfiguracion() async {
+
+            final dio = Dio();
+            try {
+                // Construir el contenido del archivo config.txt
+                String configData = '${umbralController.text}\n${tiempoBombaController.text}';
+
+                // Crear los datos del formulario
+                FormData formData = FormData.fromMap({
+                    'config_data': configData,
+                });
+
+                // Enviar la solicitud POST al servidor PHP
+                final response = await dio.post(
+                    'http://ecoriegobase.local/web/upload.php',
+                    data: formData,
+                );
+
+                if (response.statusCode == 200) {
+                    print('Archivo modificado y subido exitosamente');
+                } else {
+                    print('Error al subir el archivo');
+                }
+            } catch (e) {
+                print('Error: $e');
+            }
+    }
+
+    @override
+    Widget build(BuildContext context) {
+        return CustomSection(
+            title: 'Sección 3 - Configuración de parámetros',
+            content: Column(
+                children: [
+                    TextField(
+                        controller: umbralController,
+                        decoration: const InputDecoration(labelText: 'Umbral de humedad'),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                        controller: tiempoBombaController,
+                        decoration: const InputDecoration(labelText: 'Tiempo de la bomba (minutos)'),
+                    ),
+                    const SizedBox(height: 10),
+                    ElevatedButton(
+                        onPressed: guardarConfiguracion,
+                        child: const Text('Guardar Configuración'),
+                    ),
+                    if (errorMessage != null)
+                        Text(
+                            errorMessage!,
+                            style: const TextStyle(color: Colors.red),
+                        ),
+                ],
+            ),
+        );
+    }
 }
 
-Future<String> leerArchivoRtdo() async {
-  try {
-    final File file = File('mediciones.txt');
-    if (await file.exists()) {
-      List<String> lines = await file.readAsLines();
+class HistorialDeMediciones extends StatefulWidget {
+    const HistorialDeMediciones({Key? key}) : super(key: key);
 
-      // Variables para almacenar los datos procesados
-      List<String> column1 = [];
-      List<String> column3 = [];
+    @override
+    _HistorialDeMedicionesState createState() => _HistorialDeMedicionesState();
+}
 
-      // Obtener la fecha actual en formato 'dd/MM/yyyy'
-      String currentDate = DateFormat('dd/MM/yyyy').format(DateTime.now());
+class _HistorialDeMedicionesState extends State<HistorialDeMediciones> {
+    late List<String> lines;
+    late List<String> _xLabels;
 
-      // Procesar cada línea del archivo
-      for (String line in lines) {
-        List<String> columns = line.split('|'); // Separar por el carácter '|'
-
-        // Verificar si la línea tiene al menos 3 partes y la fecha coincide con la actual
-        if (columns.length >= 3 && columns[0].startsWith(currentDate)) {
-          column1.add(columns[0]); // Columna 1 (fecha y hora)
-          column3.add(columns[2]); // Columna 3 (Humedad del suelo)
-        }
-      }
-
-      // Si no se encontraron mediciones para hoy
-      if (column1.isEmpty) {
-        return 'No se encontraron mediciones para hoy.';
-      }
-
-      // Construir el resultado con títulos y datos procesados
-      String result = 'FECHA Y HORA          \tHUMEDAD DEL SUELO(%)\n'; // Títulos
-      for (int i = 0; i < column1.length; i++) {
-        result += '${column1[i]}\t       ${column3[i]}\n'; // Datos
-      }
-
-      // Retornar el resultado junto con el mensaje de éxito
-      return 'Se encontraron mediciones para hoy.\n\n$result';
-    } else {
-      return 'El archivo no existe.';
+    @override
+    void initState() {
+        super.initState();
+        lines = [];
+        _xLabels = [];
+        _readFile();
     }
-  } catch (e) {
-    return 'Error al leer el archivo: $e';
-  }
+
+    Future<void> _readFile() async {
+        try {
+            final response = await http.get(
+                Uri.parse('http://ecoriegobase.local/web/mediciones.txt'));
+            if (response.statusCode == 200) {
+                lines = response.body.split('\n');
+                setState(() {});
+            } else {
+                throw Exception(
+                    'Error al obtener el archivo: ${response.statusCode}');
+            }
+        } catch (e) {
+            throw Exception('Error al leer el archivo: $e');
+        }
+    }
+
+    @override
+    Widget build(BuildContext context) {
+        return Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+                Text('Sección 2 - Historial de mediciones'),
+                const SizedBox(height: 20),
+                if (lines.isNotEmpty) _buildLineChart(),
+            ],
+        );
+    }
+
+    Widget _buildLineChart() {
+        List<FlSpot> spots = [];
+        _xLabels.clear();
+        for (int i = 1; i < lines.length; i++) {
+            List<String> columns = lines[i].split('|');
+            if (columns.length >= 3) {
+                double x = i.toDouble();
+                double y = double.tryParse(columns[2]) ?? double.nan;
+                if (y.isFinite) {
+                    spots.add(FlSpot(x, y));
+                    _xLabels.add('${columns[0]}, ${columns[1]}');
+                }
+            }
+        }
+
+        // Invertir las listas para mostrar las fechas desde la más antigua a la más reciente
+        spots = spots.reversed.toList();
+
+        _xLabels = _xLabels.reversed.toList();
+
+        return Container(
+            height: 300,
+            padding: const EdgeInsets.all(16),
+            child: LineChart(
+                LineChartData(
+                    minX: 1,
+                    maxX: spots.isNotEmpty ? spots.length.toDouble() - 1 : 0,
+                    minY: 0,
+                    maxY: 100,
+                    titlesData: FlTitlesData(
+                        leftTitles: AxisTitles(
+                            sideTitles: SideTitles(
+                                showTitles: true, reservedSize: 40),
+                        ),
+                        bottomTitles: AxisTitles(
+                            sideTitles: SideTitles(
+                                showTitles: true,
+                                reservedSize: 70,
+                                getTitlesWidget: (double value,
+                                    TitleMeta meta) {
+                                    const style = TextStyle(
+                                        color: Colors.black,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 10,
+                                    );
+                                    Widget text;
+                                    if (value.toInt() >= 0 &&
+                                        value.toInt() < _xLabels.length) {
+                                        text = Text(_xLabels[value.toInt()],
+                                            style: style);
+                                    } else {
+                                        text = const Text('', style: style);
+                                    }
+                                    return SideTitleWidget(
+                                        axisSide: meta.axisSide,
+                                        child: RotatedBox(
+                                            quarterTurns: 3,
+                                            child: text,
+                                        ),
+                                    );
+                                },
+                            ),
+                        ),
+                    ),
+                    gridData: FlGridData(show: true),
+                    borderData: FlBorderData(show: true),
+                    lineBarsData: [
+                        LineChartBarData(
+                            spots: spots,
+                            isCurved: true,
+                            color: Colors.blue,
+                            barWidth: 4,
+                            belowBarData: BarAreaData(
+                                show: true,
+                                color: Colors.lightBlue.withOpacity(0.4),
+                            ),
+                        ),
+                    ],
+                ),
+            ),
+        );
+    }
+}
+
+
+Future<String?> leerArchivoRtdo() async {
+    try {
+        final response = await http.get(Uri.parse('http://ecoriegobase.local/web/mediciones.txt'));
+        if (response.statusCode == 200) {
+            return response.body;
+        } else {
+            return 'Error al obtener el archivo: ${response.statusCode}';
+        }
+    } catch (e) {
+        return 'Error al leer el archivo: $e';
+    }
 }
