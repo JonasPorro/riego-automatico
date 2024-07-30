@@ -208,7 +208,7 @@ void loop() {
     }
 
     humidity = analogRead(sensor_pin);
-    humidity = map(humidity,736,490,0,100); 
+    humidity = map(humidity,801,550,0,100); 
     if (humidity != DHT11::ERROR_CHECKSUM && humidity != DHT11::ERROR_TIMEOUT && strlen(client_id_mqtt) != 0) {
       Serial.println("Humidity: ");
       strcpy(message, client_id_mqtt);
