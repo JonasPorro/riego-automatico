@@ -9888,7 +9888,7 @@ h=A.a3(new A.ea(a,new A.aob(),a0),!0,a0.i("m.E"))
 if(J.bK(h)===0){q="No se encontraron mediciones para hoy."
 s=1
 break}g=new A.bH("")
-g.a+="Fecha y hora           | Estaci\xf3n  | Humedad del suelo \n"
+g.a+="Fecha y hora               | Estaci\xf3n  | Humedad del suelo \n"
 for(a=h,a0=A.a1(a).i("cc<1>"),a=new A.cc(a,a0),a=new A.b6(a,a.gq(0),a0.i("b6<as.E>")),a0=a0.i("as.E");a.v();){a1=a.d
 f=a1==null?a0.a(a1):a1
 e=J.ny(J.bc(f,0))
